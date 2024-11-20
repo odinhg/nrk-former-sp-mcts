@@ -9,7 +9,7 @@ References:
 import math
 import random
 from time import time
-from board import read_board_from_file, playout, step, is_terminal, get_blobs, print_board
+from board import playout, step, is_terminal, get_blobs, copy_board
 
 class Node:
     def __init__(self, board, depth, parent=None, move=None):
@@ -31,13 +31,14 @@ class MCTS:
     Only use UTC for selection strategy if all children are explored
     """
     def __init__(self, board, selection_threshold=1000):
-        self.board = board
+        self.board = [row[:] for row in board]
         self.root = Node(board, depth=0)
         self.selection_threshold = selection_threshold
         self.solution_found = False
         self.best_solution = None
 
     def search(self, time_limit=1.0):
+        # Run the MCTS algorithm for a given time limit
         t0 = time()
         node = self.root
         iter_count = 0
@@ -48,10 +49,16 @@ class MCTS:
             score = self.simulate(node)
             self.backpropagate(node, score)
             iter_count += 1
-            print("Number of iterations:", iter_count)
-
-        # print best solution by backtracking from the best leaf node
-        self.print_solution()
+        t1 = time()
+        # Return the best solution found
+        moves = []
+        node = self.best_solution
+        while node.parent is not None:
+            moves.append(node.move)
+            node = node.parent
+        moves.reverse()
+        print(f"Finished {iter_count} iterations in {t1 - t0:.2f} seconds. Found solution with {len(moves)} moves.")
+        return moves
 
     def select(self):
         node = self.root
@@ -95,9 +102,6 @@ class MCTS:
 
     def score(self, n_moves):
         # Scoring function for the playout
-        #score = 5000 * math.exp(-(n_moves**2) / 1000)
-        #score = 10000 / (n_moves)
-        # 1 to 63 maps to 0 to 1
         score = 1 - (n_moves - 1) / 63
         score *= 10000
         return score
@@ -111,42 +115,48 @@ class MCTS:
         return child
 
     def backpropagate(self, node, score):
-        # Update the node and its ancestor's average scores, visit counts, and square sum scores
+        # Update the node and its ancestor's statistics 
         while node is not None:
             node.n_visits += 1
             node.average_score = (node.average_score * (node.n_visits - 1) + score) / node.n_visits
             node.square_sum_score += score**2
             node = node.parent
 
-    def print_tree(self, node, depth=0):
-        print("  " * depth, node.move, node.average_score, node.n_visits)
-        for child in node.children:
-            self.print_tree(child, depth + 1)
-
     def max_depth(self, node):
+        # Get the maximum depth of the tree
         if not node.children:
             return 0
         return 1 + max(self.max_depth(child) for child in node.children)
 
-    def print_solution(self, print_boards=True):
-        if self.best_solution is None:
-            raise ValueError("No solution found")
-
-        node = self.best_solution
-        moves = []
-        while node.parent:
-            moves.append(node.move)
-            node = node.parent
-        moves.reverse()
-        print("Best solution:", moves)
-        print("Number of moves:", len(moves))
-
 if __name__ == "__main__":
     """
     TODO:
-    - Remove unused code in board.py and mcts.py
     - Run MCTS on the board with different random seeds and pick the best solution (multiprocessing) to prevent getting stuck in a local maximum 
+    - Separate main file for running the algo
     """
-    board = read_board_from_file("board.txt")
-    mcts = MCTS(board)
-    mcts.search(time_limit=10.0)
+    from multiprocessing import Pool 
+    from board import read_board_from_file
+
+    n_processes = 8
+    board_file = "board.txt"
+    time_limit = 10.0
+
+    board = read_board_from_file(board_file)
+
+    def run_mcts(seed):
+        random.seed(seed)
+        mcts = MCTS(board)
+        return mcts.search(time_limit)
+
+    with Pool(n_processes) as p:
+        seeds = random.sample(range(100000), n_processes)
+        solutions = p.map(run_mcts, seeds)
+        best_solution = min(solutions, key=len)
+        print(f"Best solution: {best_solution}")
+        print(f"Number of moves: {len(best_solution)}")
+        print(f"Number of processes: {n_processes}")
+        print(f"Time limit: {time_limit}")
+        print(f"Board file: {board_file}")
+
+
+
