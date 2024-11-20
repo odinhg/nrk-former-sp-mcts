@@ -112,11 +112,14 @@ def step(board, x, y):
     board = move_blocks_down(board)
     return board
 
-def playout(board):
+def playout(board, rng=None):
     # Play a random game until the board is empty
+    if rng is None:
+        rng = random.Random()
+
     n_moves = 0
     while not is_terminal(board):
-        x, y = random.choice(get_non_empty_blocks(board))
+        x, y = rng.choice(get_non_empty_blocks(board))
         board = step(board, x, y)
         n_moves += 1
     return n_moves
