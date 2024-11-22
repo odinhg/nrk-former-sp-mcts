@@ -5,9 +5,9 @@ from mcts import MCTS
 from board import read_board_from_file, print_board
 
 # Parameters
-n_processes = 32 
+n_processes = 64
 board_file = "board.txt"
-time_limit = 10 
+time_limit = 30
 
 # MCTS parameters
 selection_threshold = 10
